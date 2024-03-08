@@ -1,0 +1,558 @@
+import machine
+import utime
+import framebuf
+# micropython goodisplay driver for a pico driving a 4.2" panel
+# 
+#EPD GPIO
+isEPD_W21_BUSY=machine.Pin(0, machine.Pin.IN, machine.Pin.PULL_DOWN) #BUSY
+EPD_W21_RST= machine.Pin(1, machine.Pin.OUT)#RESE
+EPD_W21_DC= machine.Pin(2, machine.Pin.OUT)#DC
+EPD_W21_CS= machine.Pin(3, machine.Pin.OUT)#CS
+#SPI0
+spi_sck=machine.Pin(6) #SCLK
+spi_tx=machine.Pin(7)#SDIN
+spi_rx=machine.Pin(4)
+spi=machine.SPI(0,baudrate=10000000,sck=spi_sck, mosi=spi_tx, miso=spi_rx) #10Mhz
+
+#LED
+led_onboard = machine.Pin(25, machine.Pin.OUT)
+
+
+Num= [
+#0
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XE0,0X03,0XFF,0XFF,0XFF,0XFF,0XFF,0XFC,0X00,0X00,0X1F,0XFF,0XFF,
+0XFF,0XFF,0XE0,0X00,0X00,0X03,0XFF,0XFF,0XFF,0XFF,0X80,0X00,0X00,0X00,0XFF,0XFF,
+0XFF,0XFE,0X00,0X00,0X00,0X00,0X3F,0XFF,0XFF,0XFC,0X00,0X00,0X00,0X00,0X1F,0XFF,
+0XFF,0XF8,0X00,0X00,0X00,0X00,0X0F,0XFF,0XFF,0XF0,0X03,0XFF,0XFF,0XE0,0X07,0XFF,
+0XFF,0XE0,0X3F,0XFF,0XFF,0XFE,0X03,0XFF,0XFF,0XE0,0XFF,0XFF,0XFF,0XFF,0X83,0XFF,
+0XFF,0XC1,0XFF,0XFF,0XFF,0XFF,0XC1,0XFF,0XFF,0XC7,0XFF,0XFF,0XFF,0XFF,0XF1,0XFF,
+0XFF,0XC7,0XFF,0XFF,0XFF,0XFF,0XF1,0XFF,0XFF,0XCF,0XFF,0XFF,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XFF,0XFF,0XFF,0XF9,0XFF,0XFF,0XC7,0XFF,0XFF,0XFF,0XFF,0XF1,0XFF,
+0XFF,0XC7,0XFF,0XFF,0XFF,0XFF,0XF1,0XFF,0XFF,0XC3,0XFF,0XFF,0XFF,0XFF,0XE1,0XFF,
+0XFF,0XE0,0XFF,0XFF,0XFF,0XFF,0X83,0XFF,0XFF,0XE0,0X3F,0XFF,0XFF,0XFE,0X03,0XFF,
+0XFF,0XF0,0X03,0XFF,0XFF,0XC0,0X07,0XFF,0XFF,0XF8,0X00,0X00,0X00,0X00,0X0F,0XFF,
+0XFF,0XFC,0X00,0X00,0X00,0X00,0X1F,0XFF,0XFF,0XFE,0X00,0X00,0X00,0X00,0X3F,0XFF,
+0XFF,0XFF,0X80,0X00,0X00,0X00,0XFF,0XFF,0XFF,0XFF,0XE0,0X00,0X00,0X03,0XFF,0XFF,
+0XFF,0XFF,0XFE,0X00,0X00,0X3F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#1
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFC,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,0XFF,0XFC,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,
+0XFF,0XFC,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,0XFF,0XFC,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,
+0XFF,0XFC,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,0XFF,0XFC,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,
+0XFF,0XF8,0XFF,0XFF,0XFF,0XFF,0XE3,0XFF,0XFF,0XF8,0X00,0X00,0X00,0X00,0X03,0XFF,
+0XFF,0XF0,0X00,0X00,0X00,0X00,0X03,0XFF,0XFF,0XF0,0X00,0X00,0X00,0X00,0X03,0XFF,
+0XFF,0XC0,0X00,0X00,0X00,0X00,0X03,0XFF,0XFF,0XC0,0X00,0X00,0X00,0X00,0X03,0XFF,
+0XFF,0XC0,0X00,0X00,0X00,0X00,0X03,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XC3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#2
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE3,0XFF,0XFF,0XFF,0XC1,0XFF,0XFF,0XFF,0X83,0XFF,
+0XFF,0XFF,0X00,0XFF,0XFF,0XFE,0X03,0XFF,0XFF,0XFC,0X00,0X7F,0XFF,0XFC,0X03,0XFF,
+0XFF,0XF8,0X00,0X7F,0XFF,0XF8,0X03,0XFF,0XFF,0XF0,0X00,0X7F,0XFF,0XF0,0X43,0XFF,
+0XFF,0XF0,0X00,0X7F,0XFF,0XE1,0XC3,0XFF,0XFF,0XE1,0XF0,0X7F,0XFF,0X83,0XC3,0XFF,
+0XFF,0XE3,0XFF,0XFF,0XFF,0X07,0XC3,0XFF,0XFF,0XE7,0XFF,0XFF,0XFE,0X0F,0XC3,0XFF,
+0XFF,0XC7,0XFF,0XFF,0XFC,0X1F,0XC3,0XFF,0XFF,0XCF,0XFF,0XFF,0XF8,0X3F,0XC3,0XFF,
+0XFF,0XCF,0XFF,0XFF,0XF0,0X7F,0XC3,0XFF,0XFF,0XCF,0XFF,0XFF,0XE0,0XFF,0XC3,0XFF,
+0XFF,0XCF,0XFF,0XFF,0XC1,0XFF,0XC3,0XFF,0XFF,0XCF,0XFF,0XFF,0X83,0XFF,0XC3,0XFF,
+0XFF,0XC7,0XFF,0XFF,0X07,0XFF,0XC3,0XFF,0XFF,0XC7,0XFF,0XFC,0X0F,0XFF,0XC3,0XFF,
+0XFF,0XC3,0XFF,0XF0,0X1F,0XFF,0XC3,0XFF,0XFF,0XE0,0XFF,0XC0,0X3F,0XFF,0XC3,0XFF,
+0XFF,0XE0,0X00,0X00,0X7F,0XFF,0X83,0XFF,0XFF,0XF0,0X00,0X00,0XFF,0XFF,0X83,0XFF,
+0XFF,0XF0,0X00,0X01,0XFF,0XFE,0X03,0XFF,0XFF,0XF8,0X00,0X07,0XFF,0XF0,0X03,0XFF,
+0XFF,0XFC,0X00,0X0F,0XFF,0XE0,0X03,0XFF,0XFF,0XFF,0X00,0X7F,0XFF,0XE0,0X0F,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XE7,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#3
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF8,0X7F,0XFF,
+0XFF,0XFE,0X07,0XFF,0XFF,0XF0,0X1F,0XFF,0XFF,0XFC,0X03,0XFF,0XFF,0XE0,0X0F,0XFF,
+0XFF,0XF8,0X03,0XFF,0XFF,0XE0,0X07,0XFF,0XFF,0XF0,0X03,0XFF,0XFF,0XE0,0X07,0XFF,
+0XFF,0XE0,0X03,0XFF,0XFF,0XE0,0X03,0XFF,0XFF,0XE3,0XC3,0XFF,0XFF,0XF0,0XE3,0XFF,
+0XFF,0XE7,0XFF,0XFF,0XFF,0XFF,0XF1,0XFF,0XFF,0XC7,0XFF,0XFC,0XFF,0XFF,0XF1,0XFF,
+0XFF,0XCF,0XFF,0XFC,0XFF,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XFC,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XFC,0XFF,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XFC,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XF8,0X7F,0XFF,0XF9,0XFF,0XFF,0XC7,0XFF,0XF8,0X7F,0XFF,0XF1,0XFF,
+0XFF,0XC3,0XFF,0XF0,0X7F,0XFF,0XF1,0XFF,0XFF,0XC1,0XFF,0XE2,0X3F,0XFF,0XE1,0XFF,
+0XFF,0XE0,0X7F,0X82,0X1F,0XFF,0XC3,0XFF,0XFF,0XE0,0X00,0X03,0X0F,0XFF,0X83,0XFF,
+0XFF,0XF0,0X00,0X07,0X01,0XFC,0X07,0XFF,0XFF,0XF8,0X00,0X0F,0X80,0X00,0X07,0XFF,
+0XFF,0XFC,0X00,0X1F,0X80,0X00,0X0F,0XFF,0XFF,0XFE,0X00,0X3F,0XC0,0X00,0X1F,0XFF,
+0XFF,0XFF,0X80,0XFF,0XF0,0X00,0X3F,0XFF,0XFF,0XFF,0XFF,0XFF,0XF8,0X00,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0X07,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#4
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0X7F,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFC,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF8,0X7F,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XE0,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0X80,0X7F,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0X02,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFC,0X0E,0X7F,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XF8,0X3E,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XE0,0X7E,0X7F,0XFF,0XFF,
+0XFF,0XFF,0XFF,0X81,0XFE,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0X03,0XFE,0X7F,0XFF,0XFF,
+0XFF,0XFF,0XFC,0X0F,0XFE,0X7F,0XF3,0XFF,0XFF,0XFF,0XF8,0X3F,0XFE,0X7F,0XF3,0XFF,
+0XFF,0XFF,0XE0,0X7F,0XFE,0X7F,0XF3,0XFF,0XFF,0XFF,0XC1,0XFF,0XFE,0X7F,0XF3,0XFF,
+0XFF,0XFF,0X03,0XFF,0XFE,0X7F,0XF3,0XFF,0XFF,0XFC,0X0F,0XFF,0XFE,0X7F,0XF3,0XFF,
+0XFF,0XF8,0X00,0X00,0X00,0X00,0X03,0XFF,0XFF,0XE0,0X00,0X00,0X00,0X00,0X03,0XFF,
+0XFF,0XE0,0X00,0X00,0X00,0X00,0X03,0XFF,0XFF,0XE0,0X00,0X00,0X00,0X00,0X03,0XFF,
+0XFF,0XE0,0X00,0X00,0X00,0X00,0X03,0XFF,0XFF,0XE0,0X00,0X00,0X00,0X00,0X03,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XF3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XF3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XF3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XF3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XF3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XF3,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFE,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#5
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF0,0X7F,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XE0,0X3F,0XFF,0XFF,0XFF,0XF0,0X00,0X1F,0XC0,0X1F,0XFF,
+0XFF,0XE0,0X00,0X00,0X1F,0XC0,0X0F,0XFF,0XFF,0XE0,0X00,0X00,0X1F,0XC0,0X07,0XFF,
+0XFF,0XE0,0X00,0X0C,0X1F,0XC0,0X03,0XFF,0XFF,0XE1,0XFF,0XF8,0X7F,0XE1,0XE3,0XFF,
+0XFF,0XE1,0XFF,0XF0,0XFF,0XFF,0XF3,0XFF,0XFF,0XE1,0XFF,0XF1,0XFF,0XFF,0XF1,0XFF,
+0XFF,0XE1,0XFF,0XF1,0XFF,0XFF,0XF1,0XFF,0XFF,0XE1,0XFF,0XE3,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XE1,0XFF,0XE3,0XFF,0XFF,0XF9,0XFF,0XFF,0XE1,0XFF,0XE3,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XE1,0XFF,0XE3,0XFF,0XFF,0XF9,0XFF,0XFF,0XE1,0XFF,0XE3,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XE1,0XFF,0XE1,0XFF,0XFF,0XF1,0XFF,0XFF,0XE1,0XFF,0XE1,0XFF,0XFF,0XE1,0XFF,
+0XFF,0XE1,0XFF,0XE0,0XFF,0XFF,0XC3,0XFF,0XFF,0XE1,0XFF,0XF0,0X3F,0XFF,0X83,0XFF,
+0XFF,0XE1,0XFF,0XF0,0X0F,0XFC,0X03,0XFF,0XFF,0XE1,0XFF,0XF8,0X00,0X00,0X07,0XFF,
+0XFF,0XE1,0XFF,0XF8,0X00,0X00,0X0F,0XFF,0XFF,0XE1,0XFF,0XFC,0X00,0X00,0X1F,0XFF,
+0XFF,0XE1,0XFF,0XFF,0X00,0X00,0X3F,0XFF,0XFF,0XE3,0XFF,0XFF,0X80,0X00,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XF8,0X0F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#6
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XF8,0X01,0XFF,0XFF,0XFF,0XFF,0XFF,0XFE,0X00,0X00,0X07,0XFF,0XFF,
+0XFF,0XFF,0XF0,0X00,0X00,0X01,0XFF,0XFF,0XFF,0XFF,0XC0,0X00,0X00,0X00,0X7F,0XFF,
+0XFF,0XFF,0X00,0X00,0X00,0X00,0X1F,0XFF,0XFF,0XFE,0X00,0X00,0X00,0X00,0X0F,0XFF,
+0XFF,0XFC,0X00,0X00,0X00,0X00,0X07,0XFF,0XFF,0XF8,0X07,0XF8,0X1F,0XF8,0X07,0XFF,
+0XFF,0XF0,0X3F,0XF0,0X7F,0XFF,0X03,0XFF,0XFF,0XF0,0XFF,0XE0,0XFF,0XFF,0X83,0XFF,
+0XFF,0XE1,0XFF,0XE1,0XFF,0XFF,0XE1,0XFF,0XFF,0XE3,0XFF,0XE3,0XFF,0XFF,0XF1,0XFF,
+0XFF,0XC7,0XFF,0XC3,0XFF,0XFF,0XF1,0XFF,0XFF,0XC7,0XFF,0XC7,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XC7,0XFF,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XC7,0XFF,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XC7,0XFF,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XC3,0XFF,0XFF,0XF1,0XFF,
+0XFF,0XC7,0XFF,0XC1,0XFF,0XFF,0XF1,0XFF,0XFF,0XC0,0X1F,0XC0,0XFF,0XFF,0XE3,0XFF,
+0XFF,0XC0,0X1F,0XE0,0X7F,0XFF,0X83,0XFF,0XFF,0XE0,0X1F,0XE0,0X0F,0XF8,0X07,0XFF,
+0XFF,0XF0,0X1F,0XF0,0X00,0X00,0X0F,0XFF,0XFF,0XF0,0X1F,0XF0,0X00,0X00,0X0F,0XFF,
+0XFF,0XFC,0X3F,0XFC,0X00,0X00,0X3F,0XFF,0XFF,0XFF,0XFF,0XFE,0X00,0X00,0X7F,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XC0,0X01,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#7
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XF3,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFC,0X03,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE0,0X03,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE0,0X07,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE0,0X3F,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE0,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE0,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE1,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE1,0XFF,0XFF,0XFF,0XE0,0X03,0XFF,
+0XFF,0XE1,0XFF,0XFF,0XFE,0X00,0X01,0XFF,0XFF,0XE1,0XFF,0XFF,0XF0,0X00,0X01,0XFF,
+0XFF,0XE1,0XFF,0XFF,0XC0,0X00,0X01,0XFF,0XFF,0XE1,0XFF,0XFF,0X00,0X00,0X01,0XFF,
+0XFF,0XE1,0XFF,0XFC,0X00,0X00,0X01,0XFF,0XFF,0XE1,0XFF,0XE0,0X00,0X00,0X03,0XFF,
+0XFF,0XE1,0XFF,0X80,0X0F,0XFF,0XFF,0XFF,0XFF,0XE1,0XFE,0X00,0X7F,0XFF,0XFF,0XFF,
+0XFF,0XE1,0XFC,0X03,0XFF,0XFF,0XFF,0XFF,0XFF,0XE1,0XF0,0X1F,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE1,0XC0,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XE1,0X01,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE0,0X07,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE0,0X1F,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE0,0X7F,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XE1,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XE3,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#8
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0X01,0XFF,0XFF,0XFF,0XFF,0X80,0XFF,0XF8,0X00,0X7F,0XFF,
+0XFF,0XFE,0X00,0X3F,0XF0,0X00,0X3F,0XFF,0XFF,0XFC,0X00,0X1F,0XE0,0X00,0X1F,0XFF,
+0XFF,0XF8,0X00,0X0F,0XC0,0X00,0X0F,0XFF,0XFF,0XF0,0X00,0X07,0X80,0XFE,0X07,0XFF,
+0XFF,0XE0,0X7C,0X03,0X07,0XFF,0X83,0XFF,0XFF,0XE1,0XFF,0X01,0X0F,0XFF,0XC3,0XFF,
+0XFF,0XE3,0XFF,0X80,0X3F,0XFF,0XE3,0XFF,0XFF,0XC7,0XFF,0XC0,0X7F,0XFF,0XF1,0XFF,
+0XFF,0XC7,0XFF,0XE0,0X7F,0XFF,0XF1,0XFF,0XFF,0XCF,0XFF,0XE0,0X7F,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XF0,0X7F,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XF8,0X3F,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XF8,0X3F,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XF8,0X1F,0XFF,0XF9,0XFF,
+0XFF,0XC7,0XFF,0XFC,0X0F,0XFF,0XF1,0XFF,0XFF,0XC7,0XFF,0XF8,0X07,0XFF,0XF1,0XFF,
+0XFF,0XC3,0XFF,0XF0,0X07,0XFF,0XE3,0XFF,0XFF,0XE1,0XFF,0XE1,0X01,0XFF,0XE3,0XFF,
+0XFF,0XE0,0XFF,0X83,0X00,0XFF,0X83,0XFF,0XFF,0XF0,0X00,0X07,0X80,0X3E,0X07,0XFF,
+0XFF,0XF0,0X00,0X07,0XC0,0X00,0X07,0XFF,0XFF,0XF8,0X00,0X0F,0XE0,0X00,0X0F,0XFF,
+0XFF,0XFC,0X00,0X3F,0XF0,0X00,0X1F,0XFF,0XFF,0XFF,0X00,0X7F,0XFC,0X00,0X7F,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0X01,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+],
+#9
+[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XF0,0X03,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0X80,0X00,0X7F,0XFF,0XFF,0XFF,
+0XFF,0XFE,0X00,0X00,0X3F,0XFF,0X1F,0XFF,0XFF,0XFC,0X00,0X00,0X1F,0XFC,0X0F,0XFF,
+0XFF,0XF8,0X00,0X00,0X0F,0XFC,0X07,0XFF,0XFF,0XF0,0X00,0X00,0X07,0XFC,0X03,0XFF,
+0XFF,0XE0,0X3F,0XF8,0X07,0XFC,0X03,0XFF,0XFF,0XE0,0XFF,0XFF,0X03,0XFC,0X01,0XFF,
+0XFF,0XE3,0XFF,0XFF,0X83,0XFE,0X01,0XFF,0XFF,0XC7,0XFF,0XFF,0XC3,0XFF,0XF1,0XFF,
+0XFF,0XC7,0XFF,0XFF,0XC3,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XFF,0XE3,0XFF,0XF9,0XFF,
+0XFF,0XCF,0XFF,0XFF,0XE3,0XFF,0XF9,0XFF,0XFF,0XCF,0XFF,0XFF,0XE3,0XFF,0XF1,0XFF,
+0XFF,0XCF,0XFF,0XFF,0XC3,0XFF,0XF1,0XFF,0XFF,0XCF,0XFF,0XFF,0XC3,0XFF,0XE3,0XFF,
+0XFF,0XC7,0XFF,0XFF,0X87,0XFF,0XC3,0XFF,0XFF,0XC3,0XFF,0XFF,0X07,0XFF,0X03,0XFF,
+0XFF,0XE1,0XFF,0XFE,0X0F,0XFC,0X07,0XFF,0XFF,0XE0,0X7F,0XFC,0X1F,0XE0,0X0F,0XFF,
+0XFF,0XF0,0X0F,0XF0,0X38,0X00,0X1F,0XFF,0XFF,0XF8,0X00,0X00,0X00,0X00,0X3F,0XFF,
+0XFF,0XFC,0X00,0X00,0X00,0X00,0X7F,0XFF,0XFF,0XFE,0X00,0X00,0X00,0X01,0XFF,0XFF,
+0XFF,0XFF,0X00,0X00,0X00,0X07,0XFF,0XFF,0XFF,0XFF,0XE0,0X00,0X00,0X1F,0XFF,0XFF,
+0XFF,0XFF,0XFC,0X00,0X01,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,	
+]
+]
+gImage_numdot =[
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XC3,0XFF,0XFF,0X87,0XFF,
+0XFF,0XFF,0XFF,0X81,0XFF,0XFF,0X03,0XFF,0XFF,0XFF,0XFF,0X00,0XFF,0XFE,0X01,0XFF,
+0XFF,0XFF,0XFF,0X00,0XFF,0XFE,0X01,0XFF,0XFF,0XFF,0XFF,0X00,0XFF,0XFE,0X01,0XFF,
+0XFF,0XFF,0XFF,0X00,0XFF,0XFE,0X01,0XFF,0XFF,0XFF,0XFF,0X00,0XFF,0XFE,0X01,0XFF,
+0XFF,0XFF,0XFF,0X81,0XFF,0XFF,0X03,0XFF,0XFF,0XFF,0XFF,0XC3,0XFF,0XFF,0X87,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,0XFF,
+]
+
+
+#SPI#####################
+def SPI_Write(data):
+    spi.write(chr(data))			
+
+def Epaper_Write_Command(command):
+    EPD_W21_CS.value(0) #CS                
+    EPD_W21_DC.value(0) #DC		
+    SPI_Write(command)# command write
+    EPD_W21_CS.value(1) #CS  
+
+def Epaper_Write_Data(data):
+    EPD_W21_CS.value(0) #CS                       
+    EPD_W21_DC.value(1) #DC			
+    SPI_Write(data)  # data write
+    EPD_W21_CS.value(1) #CS  
+
+#BUSY
+def Epaper_READBUSY():
+    while isEPD_W21_BUSY.value()==1: #1 is busy
+        utime.sleep(0.01) 
+#SSD1681 init
+def EPD_HW_Init():
+    EPD_W21_RST.value(0)  # Module reset   
+    utime.sleep(0.01)#At least 10ms delay 
+    EPD_W21_RST.value(1)
+    utime.sleep(0.01)#At least 10ms delay
+    
+    Epaper_READBUSY() #waiting for the electronic paper IC to release the idle signal	
+    Epaper_Write_Command(0x12)			#SWRESET
+    Epaper_READBUSY() #waiting for the electronic paper IC to release the idle signal
+    '''
+    Epaper_Write_Command(0x01)  # Set MUX as 300
+    Epaper_Write_Data(0x2B)           
+    Epaper_Write_Data(0x01)
+    Epaper_Write_Data(0x00) 
+    '''
+    Epaper_Write_Command(0x21)#  Display update control
+    Epaper_Write_Data(0x40)		
+    Epaper_Write_Data(0x00)		
+
+    Epaper_Write_Command(0x3C) #BorderWavefrom
+    Epaper_Write_Data(0x05)
+    
+    Epaper_Write_Command(0x11)  # Data entry mode
+    Epaper_Write_Data(0x01)   
+    
+    Epaper_Write_Command(0x44) 
+    Epaper_Write_Data(0x00) # RAM x address start at 0
+    Epaper_Write_Data(0x31) # RAM x address end at 31h(49+1)*8->400
+    Epaper_Write_Command(0x45) 
+    Epaper_Write_Data(0x2B)   # RAM y address start at 12Bh     
+    Epaper_Write_Data(0x01)
+    Epaper_Write_Data(0x00) # RAM y address end at 00h     
+    Epaper_Write_Data(0x00)
+    
+
+    Epaper_Write_Command(0x4E) 
+    Epaper_Write_Data(0x00)
+    Epaper_Write_Command(0x4F) 
+    Epaper_Write_Data(0x2B)
+    Epaper_Write_Data(0x01)
+    Epaper_READBUSY() #waiting for the electronic paper IC to release the idle signal
+ 
+  
+#SSD1681 init GUI
+def EPD_HW_Init_GUI():
+    EPD_W21_RST.value(0)  # Module reset   
+    utime.sleep(0.01)#At least 10ms delay 
+    EPD_W21_RST.value(1)
+    utime.sleep(0.01)#At least 10ms delay
+    
+    Epaper_READBUSY() #waiting for the electronic paper IC to release the idle signal	
+    Epaper_Write_Command(0x12)			#SWRESET
+    Epaper_READBUSY() #waiting for the electronic paper IC to release the idle signal
+
+    Epaper_Write_Command(0x01)  # Set MUX as 300
+    Epaper_Write_Data(0x2B)           
+    Epaper_Write_Data(0x01)
+    Epaper_Write_Data(0x01) 
+
+    Epaper_Write_Command(0x21)#  Display update control
+    Epaper_Write_Data(0x40)		
+    Epaper_Write_Data(0x00)		
+
+    Epaper_Write_Command(0x3C) #BorderWavefrom
+    Epaper_Write_Data(0x05)
+    
+    Epaper_Write_Command(0x11)  # Data entry mode
+    Epaper_Write_Data(0x01)   
+    
+    Epaper_Write_Command(0x44) 
+    Epaper_Write_Data(0x00) # RAM x address start at 0
+    Epaper_Write_Data(0x31) # RAM x address end at 31h(49+1)*8->400
+    Epaper_Write_Command(0x45) 
+    Epaper_Write_Data(0x2B)   # RAM y address start at 12Bh     
+    Epaper_Write_Data(0x01)
+    Epaper_Write_Data(0x00) # RAM y address end at 00h     
+    Epaper_Write_Data(0x00)
+    
+
+    Epaper_Write_Command(0x4E) 
+    Epaper_Write_Data(0x00)
+    Epaper_Write_Command(0x4F) 
+    Epaper_Write_Data(0x2B)
+    Epaper_Write_Data(0x01)
+    Epaper_READBUSY() #waiting for the electronic paper IC to release the idle signal
+ 
+def EPD_Update(): 
+    Epaper_Write_Command(0x22) #Display Update Control
+    Epaper_Write_Data(0xF7)   
+    Epaper_Write_Command(0x20) #Activate Display Update Sequence
+    Epaper_READBUSY()   
+#When the electronic paper screen is updated, do not unplug the electronic paper to avoid damage to the screen*/
+def EPD_Part_Update():
+	Epaper_Write_Command(0x22) #Display Update Control
+	Epaper_Write_Data(0xFF)   
+	Epaper_Write_Command(0x20) #Activate Display Update Sequence
+	Epaper_READBUSY() 	
+#display 
+def EPD_WhiteScreen_ALL(data_BW):
+    Epaper_Write_Command(0x24)   #write RAM for black(0)/white (1)
+    for i in range(15000):             
+        Epaper_Write_Data(data_BW[i])
+    Epaper_Write_Command(0x26)   #write RAM for black(0)/white (1)
+    for i in range(15000):             
+        Epaper_Write_Data(0x00)
+    EPD_Update()	 
+
+#Clear screen
+def PIC_display_Clear():
+    #Write Data
+    Epaper_Write_Command(0x24)	       #Transfer old data
+    for i in range(15000):  	
+        Epaper_Write_Data(0xFF)
+    Epaper_Write_Command(0x26)	       #Transfer old data
+    for i in range(15000):  	
+        Epaper_Write_Data(0x00) 
+    #Refresh
+    EPD_Update()
+#Enter deep sleep mode 
+def EPD_DeepSleep(): 	
+    Epaper_Write_Command(0x10) #enter deep sleep
+    Epaper_Write_Data(0x01) 
+    utime.sleep(0.01)
+
+
+#The x axis is reduced by one byte, and the y axis is reduced by one pixel.
+def EPD_SetRAMValue_BaseMap(datas):	
+    Epaper_Write_Command(0x24)   #Write Black and White image to RAM
+    for i in range(15000):             
+        Epaper_Write_Data(datas[i])
+    Epaper_Write_Command(0x26)   #Write Black and White image to RAM
+    for i in range(15000):             
+        Epaper_Write_Data(datas[i])
+    EPD_Update()	
+def EPD_SetRAMValue_BaseMapWhite():	
+    Epaper_Write_Command(0x24)   #Write Black and White image to RAM
+    for i in range(15000):             
+        Epaper_Write_Data(0xFF)
+    Epaper_Write_Command(0x26)   #Write Black and White image to RAM
+    for i in range(15000):             
+        Epaper_Write_Data(0xFF)
+    EPD_Update()
+    
+def EPD_Dis_Part(x_start,y_start,datas,PART_COLUMN,PART_LINE):
+    x_start=x_start//8 #x address start
+    x_end=x_start+PART_LINE//8-1 #x address end
+    y_start=y_start #Y address start
+    y_end=y_start+PART_COLUMN-1 #Y address end
+    #Add hardware reset to prevent background color change
+    EPD_W21_RST.value(0)  # Module reset   
+    utime.sleep(0.01)#At least 10ms delay 
+    EPD_W21_RST.value(1)
+    utime.sleep(0.01) #At least 10ms delay
+    
+    #Lock the border to prevent flashing
+    
+    Epaper_Write_Command(0x21)
+    Epaper_Write_Data(0x00)
+    Epaper_Write_Data(0x00)
+    '''
+    Epaper_Write_Command(0x3C) #BorderWavefrom,
+    Epaper_Write_Data(0x80)
+    '''
+    Epaper_Write_Command(0x44)       # set RAM x address start/end
+    Epaper_Write_Data(x_start)  #x address start
+    Epaper_Write_Data(x_end)   #y address end   
+    Epaper_Write_Command(0x45)    # set RAM y address start/end
+    Epaper_Write_Data(y_start%256) #y address start2 
+    Epaper_Write_Data(y_start//256) #y address start1 
+    Epaper_Write_Data(y_end%256)  #y address end2 
+    Epaper_Write_Data(y_end//256) #y address end1   
+
+    Epaper_Write_Command(0x4E)        # set RAM x address count to 0;
+    Epaper_Write_Data(x_start)   #x start address
+    Epaper_Write_Command(0x4F)      # set RAM y address count to 0X127;    
+    Epaper_Write_Data(y_start%256)#y address start2
+    Epaper_Write_Data(y_start//256)#y address start1
+
+    Epaper_Write_Command(0x24)   #Write Black and White image to RAM 
+    for i in range(PART_COLUMN*PART_LINE//8):                       
+        Epaper_Write_Data(datas[i])
+    EPD_Part_Update()
+
+def EPD_Dis_Part_RAM(x_start,y_start,datas,PART_COLUMN,PART_LINE):
+    x_start=x_start//8 #x address start
+    x_end=x_start+PART_LINE//8-1 #x address end
+    y_start=y_start #Y address start
+    y_end=y_start+PART_COLUMN-1 #Y address end			
+    #Add hardware reset to prevent background color change
+    
+    EPD_W21_RST.value(0)  # Module reset   
+    utime.sleep(0.01)#At least 10ms delay 
+    EPD_W21_RST.value(1)
+    utime.sleep(0.01) #At least 10ms delay
+    
+    #Lock the border to prevent flashing
+    
+    Epaper_Write_Command(0x21)
+    Epaper_Write_Data(0x00)
+    Epaper_Write_Data(0x00)
+    
+    Epaper_Write_Command(0x3C) #BorderWavefrom,
+    Epaper_Write_Data(0x80)
+    
+    Epaper_Write_Command(0x44)       # set RAM x address start/end
+    Epaper_Write_Data(x_start)  #x address start
+    Epaper_Write_Data(x_end)   #y address end   
+    Epaper_Write_Command(0x45)    # set RAM y address start/end
+    Epaper_Write_Data(y_start%256) #y address start2 
+    Epaper_Write_Data(y_start//256) #y address start1 
+    Epaper_Write_Data(y_end%256)  #y address end2 
+    Epaper_Write_Data(y_end//256) #y address end1   
+
+    Epaper_Write_Command(0x4E)        # set RAM x address count to 0;
+    Epaper_Write_Data(x_start)   #x start address
+    Epaper_Write_Command(0x4F)      # set RAM y address count to 0X127;    
+    Epaper_Write_Data(y_start%256)#y address start2
+    Epaper_Write_Data(y_start//256)#y address start1
+
+    Epaper_Write_Command(0x24)   #Write Black and White image to RAM 
+    for i in range(PART_COLUMN*PART_LINE//8):                       
+        Epaper_Write_Data(datas[i])
+
+    
+    
+#Clock display
+def EPD_Dis_Part_Time(x_startA,y_startA,datasA,
+                      x_startB,y_startB,datasB,
+                      x_startC,y_startC,datasC,
+                      x_startD,y_startD,datasD,
+                      x_startE,y_startE,datasE,PART_COLUMN,PART_LINE):
+
+    EPD_Dis_Part_RAM(x_startA,y_startA,datasA,PART_COLUMN,PART_LINE)
+    EPD_Dis_Part_RAM(x_startB,y_startB,datasB,PART_COLUMN,PART_LINE)
+    EPD_Dis_Part_RAM(x_startC,y_startC,datasC,PART_COLUMN,PART_LINE)
+    EPD_Dis_Part_RAM(x_startD,y_startD,datasD,PART_COLUMN,PART_LINE)
+    EPD_Dis_Part_RAM(x_startE,y_startE,datasE,PART_COLUMN,PART_LINE)
+    EPD_Part_Update()
+   
+
+while True:
+    #############MicroPython  GUI############### 
+    width=400
+    height=300    
+    buffer = bytearray(height * width // 8)   
+    fbuf = framebuf.FrameBuffer(buffer, width, height, framebuf.MONO_HLSB)
+    fbuf.fill(0xff) #white background
+    fbuf.text('www.good-display.cn', 145, 0, 0x00) #s, x, y[, c]
+    fbuf.hline(145, 10, 152, 0x00)
+    fbuf.text("Raspberry Pico", 165, 16, 0x00)
+     #古
+    fbuf.vline(213, 40, 50, 0x00)#x, y, w, c
+    fbuf.hline(173, 70, 80, 0x00)#x, y, w, c
+    fbuf.rect(188, 92, 50, 50, 0x00)
+ 
+     #Picture GUI
+    '''
+    EPD_HW_Init_GUI() #EPD init
+    EPD_WhiteScreen_ALL(buffer)#EPD GUI
+    EPD_DeepSleep()#EPD_sleep,Sleep instruction is necessary, please do not delete!!!
+    utime.sleep(3) #delay 3s
+    '''
+    ###############################################     
+    #Picture
+    '''
+    EPD_HW_Init() #EPD init
+    EPD_WhiteScreen_ALL(gImage_1)#EPD Clear
+    EPD_DeepSleep()#EPD_sleep,Sleep instruction is necessary, please do not delete!!!
+    utime.sleep(1) #delay 1s 
+ 
+   '''
+    ###############Partial refresh time demo######################
+    EPD_HW_Init() #Electronic paper initialization.
+    #EPD_SetRAMValue_BaseMap(gImage_1) #Please do not delete the background color function, otherwise it will cause unstable display during partial refresh.
+    EPD_SetRAMValue_BaseMapWhite() #Please do not delete the background color function, otherwise it will cause unstable display during partial refresh.
+    #PIC_display_Clear()#EPD Clear
+    for i in range(6):
+        EPD_Dis_Part(152,60,Num[i],32,64)
+        
+        '''
+        EPD_Dis_Part_Time(152,92+32*0,Num[i],        #x-A,y-A,DATA-A
+                          152,92+32*1,Num[0],         #x-B,y-B,DATA-B
+                          152,92+32*2,gImage_numdot, #x-C,y-C,DATA-C
+                          152,92+32*3,Num[0],        #x-D,y-D,DATA-D
+                          152,92+32*4,Num[1],32,64) #x-E,y-E,DATA-E,Resolution  32*64
+         '''
+    EPD_DeepSleep()  #Enter the sleep mode and please do not delete it, otherwise it will reduce the lifespan of the screen.
+    utime.sleep(2) #delay 2s
+     #Clear
+    EPD_HW_Init() #EPD init
+    PIC_display_Clear()#EPD Clear
+    EPD_DeepSleep()#EPD_sleep,Sleep instruction is necessary, please do not delete!!!
+    utime.sleep(2) #delay 2s 
+    while 1:
+        led_onboard.toggle()
+        utime.sleep(1) #delay 1s
+ 
+    
+    
+    
+
+   
+    
+    
+    
